@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-kouventa-deployment
+  namespace: default
+  labels:
+    app.kubernetes.io/name: frontend-kouventa
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend-kouventa
+  template:
+    metadata:
+      labels:
+        app: backend-kouventa
+    spec:
+      imagePullSecrets:
+        - name: regcred
+      containers:
+        - name: backend-kouventa-container
+          image: hakaes/f9cozoxjvpzx:frontend
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - "ALL"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-kouventa-service
+  namespace: default
+  labels:
+    app.kubernetes.io/name: frontend-kouventa
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: frontend-kouventa
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 3000
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: regcred
+  namespace: default
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOiB7fSwKCQkiaHR0cHM6Ly9pbmRleC5kb2NrZXIuaW8vdjEvYWNjZXNzLXRva2VuIjoge30sCgkJImh0dHBzOi8vaW5kZXguZG9ja2VyLmlvL3YxL3JlZnJlc2gtdG9rZW4iOiB7fQoJfSwKCSJjcmVkc1N0b3JlIjogImRlc2t0b3AiLAoJImN1cnJlbnRDb250ZXh0IjogImRlc2t0b3AtbGludXgiLAoJInBsdWdpbnMiOiB7CgkJIi14LWNsaS1oaW50cyI6IHsKCQkJImVuYWJsZWQiOiAidHJ1ZSIKCQl9LAoJCSJkZWJ1ZyI6IHsKCQkJImhvb2tzIjogImV4ZWMiCgkJfSwKCQkic2NvdXQiOiB7CgkJCSJob29rcyI6ICJwdWxsLGJ1aWxkeCBidWlsZCIKCQl9Cgl9LAoJImZlYXR1cmVzIjogewoJCSJob29rcyI6ICJ0cnVlIgoJfQp9
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-kouventa
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/service-upstream: "true"
+spec:
+  rules:
+    - host: kouventa.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-kouventa-service
+                port:
+                  number: 80
