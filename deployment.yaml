@@ -19,7 +19,7 @@ spec:
         - name: regcred
       containers:
         - name: frontend-kouventa-container
-          image: hakaes/f9cozoxjvpzx:frontend
+          image: hakaes/f9cozoxjvpzx:frontend_7
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
