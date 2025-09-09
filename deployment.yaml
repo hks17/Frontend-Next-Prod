@@ -1,3 +1,4 @@
+# --- Original frontend-kouventa-deployment (no changes) ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -9,7 +10,7 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: frontend-kouventa # Matches the template's app label
+      app: frontend-kouventa
   template:
     metadata:
       labels:
@@ -40,6 +41,7 @@ spec:
               drop:
                 - "ALL"
 ---
+# --- Original frontend-kouventa-service (no changes) ---
 apiVersion: v1
 kind: Service
 metadata:
@@ -48,15 +50,16 @@ metadata:
   labels:
     app.kubernetes.io/name: frontend-kouventa
 spec:
-  type: LoadBalancer
+  type: ClusterIP # Changed to ClusterIP as Nginx will be the LoadBalancer
   selector:
-    app: frontend-kouventa # Should match the Deployment's pod template label
+    app: frontend-kouventa
   ports:
     - name: http
       protocol: TCP
-      port: 80 # Service port
-      targetPort: 3000 # Container port
+      port: 80
+      targetPort: 3000
 ---
+# --- Original cred-secret (no changes) ---
 apiVersion: v1
 kind: Secret
 metadata:
@@ -64,8 +67,161 @@ metadata:
   namespace: default
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9hY2Nlc3MtdG9rZW4iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9yZWZyZXNoLXRva2VuIjp7fX0sImNyZWRzU3RvcmUiOiJkZXNrdG9wIiwiY3VycmVudENvbnRleHQiOiJkZXNrdG9wLWxpbnV4IiwicGx1Z2lucyI6eyJweC1jbGktaGludHMiOnsiZW5hYmxlZCI6InRydWUifSwiZGVidWciOnsiaG9va3MiOiJleGVjIn0sInNjb3V0Ijp7Imhvb2tzIjoicHVsbCxidWlsZCBidWlsZCJ9fSwiZmVhdHVyZXMiOnsiaG9va3MiOiJ0cnVlIn19 # Base64 encoded docker config json
+  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9hY2Nlc3MtdG9rZW4iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9yZWZyZXNoLXRva2VuIjp7fX0sImNyZWRzU3RvcmUiOiJkZXNrdG9wIiwiY3VycmVudENvbnRleHQiOiJkZXNrdG9wLWxpbnV4IiwicGx1Z2lucyI6eyJweC1jbGktaGludHMiOnsiZW5hYmxlZCI6InRydWUifSwiZGVidWciOnsiaG9va3MiOiJleGVjIn0sInNjb3V0Ijp7Imhvb2tzIjoicHVsbCxidWlsZCBidWlsZCJ9fSwiZmVhdHVyZXMiOnsiaG9va3MiOiJ0cnVlIn19
 ---
+# --- NEW Nginx Configuration ConfigMap ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: default
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      include       /etc/nginx/mime.types;
+      default_type  application/octet-stream;
+      sendfile        on;
+      keepalive_timeout  65;
+
+      server {
+        listen 80;
+        server_name kouventa.local;
+
+        # Serve static files from /usr/share/nginx/html
+        # This assumes your index.html and other static files are there
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+
+        location / {
+          try_files $uri $uri/ =404; # Try to serve static file first
+          # If static file not found, proxy to the frontend application
+          # proxy_pass http://frontend-kouventa-service.default.svc.cluster.local;
+          # proxy_set_header Host $host;
+          # proxy_set_header X-Real-IP $remote_addr;
+          # proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          # proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # Example of how you might proxy specific paths to your frontend
+        # For instance, if your API is at /api
+        location /api/ {
+          proxy_pass http://frontend-kouventa-service.default.svc.cluster.local:80;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        # If you want ALL requests not matching a static file to go to the frontend
+        # and not serve static files from the root, you would change the root location
+        # to just proxy_pass.
+        # For example, to serve `index.html` from the frontend and use Nginx only for proxying:
+        # location / {
+        #   proxy_pass http://frontend-kouventa-service.default.svc.cluster.local:80;
+        #   proxy_set_header Host $host;
+        #   proxy_set_header X-Real-IP $remote_addr;
+        #   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        #   proxy_set_header X-Forwarded-Proto $scheme;
+        # }
+      }
+    }
+
+---
+# --- NEW Nginx Static Content ConfigMap (.htdocs) ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-html
+  namespace: default
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <title>Welcome to Nginx!</title>
+    <style>
+        body {
+            width: 35em;
+            margin: 0 auto;
+            font-family: Tahoma, Verdana, Arial, sans-serif;
+        }
+    </style>
+    </head>
+    <body>
+    <h1>Hello from your Nginx .htdocs!</h1>
+    <p>If you see this page, the nginx web server is successfully installed and
+    working. Further configuration is required.</p>
+    <p>For documentation and support please refer to
+    <a href="http://nginx.org/">nginx.org</a>.<br/>
+    <i>This is your static content.</i></p>
+    </body>
+    </html>
+  # You can add more static files here, e.g., styles.css, images, etc.
+  # example.txt: |
+  #   This is another static file.
+
+---
+# --- NEW Nginx Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+        - name: nginx-container
+          image: nginx:latest # Using a standard Nginx image
+          ports:
+            - containerPort: 80
+              name: http
+          volumeMounts:
+            - name: nginx-config-volume
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf # Mounts just the file, not the directory
+            - name: nginx-html-volume
+              mountPath: /usr/share/nginx/html # Standard Nginx static content path
+      volumes:
+        - name: nginx-config-volume
+          configMap:
+            name: nginx-config
+        - name: nginx-html-volume
+          configMap:
+            name: nginx-html
+
+---
+# --- NEW Nginx Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+  namespace: default
+  labels:
+    app: nginx
+spec:
+  type: LoadBalancer # Nginx will be the entry point
+  selector:
+    app: nginx
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+
+---
+# --- MODIFIED Ingress (to point to Nginx) ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -82,6 +238,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: frontend-kouventa-service
+                name: nginx-service # Point to the new Nginx service
                 port:
-                  number: 80 # This should be the Service's port, not the targetPort
+                  number: 80
