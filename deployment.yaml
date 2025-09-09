@@ -9,7 +9,7 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: frontend-kouventa
+      app: frontend-kouventa # Matches the template's app label
   template:
     metadata:
       labels:
@@ -50,12 +50,12 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    app.kubernetes.io/name: frontend-kouventa
+    app: frontend-kouventa # Should match the Deployment's pod template label
   ports:
     - name: http
       protocol: TCP
-      port: 80
-      targetPort: 3000
+      port: 80 # Service port
+      targetPort: 3000 # Container port
 ---
 apiVersion: v1
 kind: Secret
@@ -64,7 +64,7 @@ metadata:
   namespace: default
 type: kubernetes.io/dockerconfigjson
 data:
-  .dockerconfigjson: ewoJImF1dGhzIjogewoJCSJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOiB7fSwKCQkiaHR0cHM6Ly9pbmRleC5kb2NrZXIuaW8vdjEvYWNjZXNzLXRva2VuIjoge30sCgkJImh0dHBzOi8vaW5kZXguZG9ja2VyLmlvL3YxL3JlZnJlc2gtdG9rZW4iOiB7fQoJfSwKCSJjcmVkc1N0b3JlIjogImRlc2t0b3AiLAoJImN1cnJlbnRDb250ZXh0IjogImRlc2t0b3AtbGludXgiLAoJInBsdWdpbnMiOiB7CgkJIi14LWNsaS1oaW50cyI6IHsKCQkJImVuYWJsZWQiOiAidHJ1ZSIKCQl9LAoJCSJkZWJ1ZyI6IHsKCQkJImhvb2tzIjogImV4ZWMiCgkJfSwKCQkic2NvdXQiOiB7CgkJCSJob29rcyI6ICJwdWxsLGJ1aWxkeCBidWlsZCIKCQl9Cgl9LAoJImZlYXR1cmVzIjogewoJCSJob29rcyI6ICJ0cnVlIgoJfQp9
+  .dockerconfigjson: eyJhdXRocyI6eyJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9hY2Nlc3MtdG9rZW4iOnt9LCJodHRwczovL2luZGV4LmRvY2tlci5pby92MS9yZWZyZXNoLXRva2VuIjp7fX0sImNyZWRzU3RvcmUiOiJkZXNrdG9wIiwiY3VycmVudENvbnRleHQiOiJkZXNrdG9wLWxpbnV4IiwicGx1Z2lucyI6eyJweC1jbGktaGludHMiOnsiZW5hYmxlZCI6InRydWUifSwiZGVidWciOnsiaG9va3MiOiJleGVjIn0sInNjb3V0Ijp7Imhvb2tzIjoicHVsbCxidWlsZCBidWlsZCJ9fSwiZmVhdHVyZXMiOnsiaG9va3MiOiJ0cnVlIn19 # Base64 encoded docker config json
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -84,4 +84,4 @@ spec:
               service:
                 name: frontend-kouventa-service
                 port:
-                  number: 80
+                  number: 80 # This should be the Service's port, not the targetPort
