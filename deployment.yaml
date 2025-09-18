@@ -19,7 +19,7 @@ spec:
         - name: cred-secret
       containers:
         - name: frontend-kouventa-container
-          image: hakaes/hkasdas0fzxf123:frontend_18
+          image: hakaes/hkasdas0fzxf123:frontend_22
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
